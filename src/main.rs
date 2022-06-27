@@ -34,15 +34,23 @@ fn main() {
     //     .execute(&conn)
     //     .expect("Error saving new post");
 
-    let post_update = diesel::update(posts.find(3))
-        .set((title.eq("Using Diesel 3"),slug.eq("using-diesel3"), body.eq("This is a blog post using Diesel")))
-        .execute(&conn)
-        .expect("Error updating post");
+    // edit a post in the database
+    // let post_update = diesel::update(posts.find(3))
+    //     .set((title.eq("Using Diesel 3"),slug.eq("using-diesel3"), body.eq("This is a blog post using Diesel")))
+    //     .execute(&conn)
+    //     .expect("Error updating post");
 
-    // Select all posts
+    // delete a post from the database
+    diesel::delete(posts.find(3)).execute(&conn).expect("Error deleting post");
+
+    // delete all posts with the same slug structure from the database
+    diesel::delete(posts.filter(slug.like("%-post%"))).execute(&conn).expect("Error deleting post");
+
+
+    // get all posts from the database
     let posts_result = posts.load::<Post>(&conn)
         .expect("Error loading posts")
         .iter()
-        .for_each(|post| println!("{} {} {} {}",post.id, post.title, post.slug, post.body));
+        .for_each(|post| println!("{} {} {} {}", post.id, post.title, post.slug, post.body));
 
 }
