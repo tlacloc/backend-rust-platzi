@@ -44,7 +44,7 @@ fn main() {
     diesel::delete(posts.find(3)).execute(&conn).expect("Error deleting post");
 
     // delete all posts with the same slug structure from the database
-    diesel::delete(posts.filter(slug.like("%-post%"))).execute(&conn).expect("Error deleting post");
+    diesel::delete(posts.filter(slug.like("%-diesel%"))).execute(&conn).expect("Error deleting post");
 
 
     // get all posts from the database
