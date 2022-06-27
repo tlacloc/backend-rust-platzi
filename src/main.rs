@@ -1,5 +1,3 @@
-use actix_web::{get, web, App, HttpServer, HttpResponse, Responder};
-
 #[macro_use]
 extern crate diesel;
 
@@ -15,10 +13,33 @@ use diesel::pg::PgConnection;
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::r2d2::Pool;
 
-#[get("/hello")]
-async fn hello_world() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+
+pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
+
+use self::models::Post;
+use self::schema::posts;
+use self::schema::posts::dsl::*;
+
+#[get("/")]
+async fn index(pool: web::Data<DbPool>) -> impl Responder {
+    let conn = pool.get().expect("Failed to get connection from pool");
+
+    match web::block(move || {posts.load::<Post>(&conn)})
+        .await {
+            Ok(data) => {
+                return HttpResponse::Ok().body(format!("{:?}", data));
+            },
+            Err(err) => HttpResponse::Ok().body("Error connecting to Postgres")
+        }
+    
+    
 }
+
+// #[get("/hello")]
+// async fn index() -> impl Responder {
+//     HttpResponse::Ok().body("Hello world!")
+// }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -34,10 +55,12 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to create pool.");
 
     
-
+    // move transfer main to any other thread is needed
     HttpServer::new(move || {
-        App::new().service(hello_world).data(pool.clone())
+        App::new().service(index).data(pool.clone())
     }).bind(("0.0.0.0", 9900))?.run().await
+
+    
 
     // let conn = PgConnection::establish(&db_url)
     //     .expect(&format!("Error connecting to {}", db_url));
