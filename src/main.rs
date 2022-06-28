@@ -24,25 +24,58 @@ use self::schema::posts;
 use self::schema::posts::dsl::*;
 
 #[get("/")]
-async fn index(pool: web::Data<DbPool>) -> impl Responder {
+async fn index(pool: web::Data<DbPool>, template_manager: web::Data<tera::Tera>) -> impl Responder {
     let conn = pool.get().expect("Failed to get connection from pool");
 
     match web::block(move || posts.load::<Post>(&conn)).await {
         Ok(data) => {
-            return HttpResponse::Ok().body(format!("{:?}", data));
+            let data = data.unwrap();
+
+            let mut context = tera::Context::new();
+            context.insert("posts", &data);
+
+            HttpResponse::Ok().content_type("text/html").body(
+                template_manager.render("index.html", &context).unwrap()
+            )
+            
         }
         Err(err) => HttpResponse::Ok().body("Error connecting to Postgres"),
     }
 }
 
-#[get("/test")]
-async fn tera_test(template_manager: web::Data<tera::Tera>) -> impl Responder {
-    let context = tera::Context::new();
+#[get("/post/{blog_slug}")]
+async fn get_blog(
+    pool: web::Data<DbPool>, 
+    template_manager: web::Data<tera::Tera>, 
+    blog_slug: web::Path<String>
+) -> impl Responder {
+    
+    let conn = pool.get().expect("Failed to get connection from pool");
 
-    HttpResponse::Ok().content_type("text/html").body(
-        template_manager.render("index.html", &context).unwrap()
-    )
+    let url_slug = blog_slug.into_inner();
+
+    match web::block(move || posts.filter(slug.eq(url_slug)).load::<Post>(&conn)).await {
+        Ok(data) => {
+            let data = data.unwrap();
+
+            if data.len() == 0 {
+                return HttpResponse::NotFound().body("Post not found");
+            }
+
+            let data = &data[0];
+
+            let mut context = tera::Context::new();
+            context.insert("post", &data);
+
+            HttpResponse::Ok().content_type("text/html").body(
+                template_manager.render("posts.html", &context).unwrap()
+            )
+            
+        }
+        Err(err) => HttpResponse::Ok().body("Error connecting to Postgres"),
+    }
 }
+
 
 #[post("/new_post")]
 async fn new_post(pool: web::Data<DbPool>, new_post: web::Json<NewPostHandler>) -> impl Responder {
@@ -81,7 +114,7 @@ async fn main() -> std::io::Result<()> {
             App::new()
             .service(index)
             .service(new_post)
-            .service(tera_test)
+            .service(get_blog)
             .data(pool.clone())
             .data(tera)
     })
