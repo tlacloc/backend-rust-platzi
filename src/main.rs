@@ -100,6 +100,8 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
 
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let port = env::var("PORT").expect("PORT must be set");
+    let port : u16 = port.parse().unwrap();
 
     let connection = ConnectionManager::<PgConnection>::new(db_url);
 
@@ -118,7 +120,7 @@ async fn main() -> std::io::Result<()> {
             .data(pool.clone())
             .data(tera)
     })
-    .bind(("0.0.0.0", 9900))?
+    .bind(("0.0.0.0", port))?
     .run()
     .await
 
