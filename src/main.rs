@@ -4,6 +4,8 @@ extern crate diesel;
 pub mod models;
 pub mod schema;
 
+use tera::Tera;
+
 use dotenv::dotenv;
 use std::env;
 
@@ -33,6 +35,15 @@ async fn index(pool: web::Data<DbPool>) -> impl Responder {
     }
 }
 
+#[get("/test")]
+async fn tera_test(template_manager: web::Data<tera::Tera>) -> impl Responder {
+    let context = tera::Context::new();
+
+    HttpResponse::Ok().content_type("text/html").body(
+        template_manager.render("index.html", &context).unwrap()
+    )
+}
+
 #[post("/new_post")]
 async fn new_post(pool: web::Data<DbPool>, new_post: web::Json<NewPostHandler>) -> impl Responder {
     let conn = pool.get().expect("Failed to get connection from pool");
@@ -47,7 +58,7 @@ async fn new_post(pool: web::Data<DbPool>, new_post: web::Json<NewPostHandler>) 
         Ok(data) => {
             return HttpResponse::Ok().body(format!("{:?}", data));
         }
-        Err(err) => HttpResponse::Ok().body("Error connecting to Postgres"),
+        Err(_) => HttpResponse::Ok().body("Error connecting to Postgres"),
     }
 }
 
@@ -62,13 +73,17 @@ async fn main() -> std::io::Result<()> {
     let pool = Pool::builder()
         .build(connection)
         .expect("Failed to create pool.");
+        
+        // move transfer main to any other thread is needed
+        HttpServer::new(move || {
+            let tera = Tera::new(concat!(env!("CARGO_MANIFEST_DIR"),"/templates/**/*")).unwrap();
 
-    // move transfer main to any other thread is needed
-    HttpServer::new(move || {
-        App::new()
+            App::new()
             .service(index)
             .service(new_post)
+            .service(tera_test)
             .data(pool.clone())
+            .data(tera)
     })
     .bind(("0.0.0.0", 9900))?
     .run()
